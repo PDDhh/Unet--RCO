@@ -1,111 +1,93 @@
 # U-Net++-RCO
 
-Official-style research code layout for U-Net++ with region, center, and offset
-(RCO) supervision for grayscale phase segmentation.
+Research code for **U-Net++ with Region, Center, and Offset (RCO) supervision** for segmentation and quantitative characterization of γ′ precipitates in grayscale SEM images.
 
-The repository contains the proposed U-Net++-RCO workflow and four reference
-baselines used for comparison. The core workflow is designed to run from the
-repository root without editing source files.
+This repository accompanies the manuscript:
 
-## Method Overview
+**Deep learning segmentation with quality control for γ/γ′ microstructure characterization in Ni3Al-based single-crystal superalloys**
 
-U-Net++-RCO predicts four maps:
+## Method overview
 
-| Channel | Name | Description |
-| --- | --- | --- |
-| 0 | `region` | Foreground region probability |
-| 1 | `center` | Normalized distance-to-boundary center score |
+U-Net++-RCO predicts four output maps:
+
+| Channel | Output | Description |
+|---|---|---|
+| 0 | `region` | Foreground γ′ region probability |
+| 1 | `center` | Normalized center score |
 | 2 | `offset_y` | Normalized vertical direction toward the instance center |
 | 3 | `offset_x` | Normalized horizontal direction toward the instance center |
 
-Inference combines the region, center, and offset maps to refine uncertain
-boundary pixels. This RCO refinement is part of the default inference path. It
-does not apply morphology. Small isolated predictions are filtered by connected
-component area.
+During inference, the region prediction is refined using the center and offset outputs in uncertain pixels. The default paper inference settings are:
 
-See [docs/method.md](docs/method.md) for the target definitions and inference
-details.
+- Region threshold: `0.5`
+- Uncertain interval: `0.35–0.65`
+- `alpha = 0.15`
+- `beta = 0.15`
 
-## Repository Layout
+A deterministic grayscale brightness/contrast enhancement is enabled by default during inference. It can be disabled with `--no-enhance`.
+
+## Repository structure
 
 ```text
 .
-|-- rco/
-|   |-- architectures.py
-|-- scripts/
-|   |-- generate_rco_targets.py
-|   |-- train_rco.py
-|   |-- predict_rco.py
-|-- baselines/
-|   |-- otsu_morphology.py
-|   |-- random_forest.py
-|   |-- unet.py
-|   |-- unetplusplus.py
-|-- configs/
-|   |-- unetpp_rco_paper.yaml
-|   |-- unetpp_rco_example.yaml
-|-- docs/
-|   |-- method.md
-|   |-- reproducibility.md
-|-- inputs/
-|   |-- README.md
+├── baselines/
+│   ├── otsu_morphology.py
+│   ├── random_forest.py
+│   ├── unet.py
+│   └── unetplusplus.py
+├── configs/
+│   ├── unetpp_rco_paper.yaml
+│   └── unetpp_rco_example.yaml
+├── inputs/
+│   └── README.md
+├── rco/
+│   └── architectures.py
+├── scripts/
+│   ├── generate_rco_targets.py
+│   ├── train_rco.py
+│   └── predict_rco.py
+├── environment.yml
+├── requirements.txt
+├── LICENSE
+└── README.md
 ```
 
-Generated checkpoints are written to `models/`. Prediction outputs are written
-to `outputs/`. Both directories are ignored by Git.
+Generated model files and prediction outputs are written to directories such as `models/` and `outputs/`, which are excluded from the repository.
 
 ## Installation
 
-The workflow was verified with Conda on Windows. The clean reconstruction is
-defined in `environment.yml`:
-
-- Python `3.8.0`
-- PyTorch `2.1.0+cu121`
-- CUDA runtime `12.1`
-- cuDNN `8801`
-- NVIDIA GeForce RTX 4060 Laptop GPU
-
-The environment file intentionally installs one OpenCV distribution. Avoid
-installing `opencv-python`, `opencv-contrib-python`, and
-`opencv-python-headless` together because they provide the same `cv2` package.
-
-Create the environment:
+Using Conda:
 
 ```bash
 conda env create -f environment.yml
 conda activate unetpp-rco
 ```
 
-To use an existing environment, install the core dependencies:
+Alternatively, install the core dependencies in an existing Python environment:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Install the PyTorch build appropriate for your CUDA version if a different
-system configuration is used. To run the supplementary baselines, install:
+Users may need to install a PyTorch build appropriate for their own CUDA/CPU environment.
 
-```bash
-pip install -r requirements-baselines.txt
-```
+## Data preparation
 
-## Data Preparation
+The original SEM images, annotations, and pretrained model weights used in the paper are **not included** in this repository.
 
-This repository does **not** include the original SEM data used in the paper.
-Users must prepare their own grayscale SEM images and corresponding annotations.
-The code does not require the paper's private raw experimental data.
-
-Place the grayscale images and matching binary masks under:
+Users should prepare their own grayscale SEM images and corresponding binary annotations. A typical dataset layout is:
 
 ```text
 inputs/<dataset_name>/
-|-- images/
-|   |-- sample_001.tif
-|-- masks/
-|   |-- sample_001.tif
+├── images/
+│   └── sample_001.tif
+└── masks/
+    └── sample_001.tif
 ```
 
-The file stems must match. Generate the RCO supervision targets:
+Image and mask file stems should match.
+
+Generate RCO supervision targets with:
 
 ```bash
 python -m scripts.generate_rco_targets \
@@ -117,46 +99,64 @@ python -m scripts.generate_rco_targets \
   --min-size 20
 ```
 
-Each generated `.npz` file contains `region`, `center`, `offset_y`, and
-`offset_x`. By default, connected foreground pixels are treated as one instance.
-If touching objects must remain separate, provide instance-aware annotations or
-extend the target generation step.
+Each generated `.npz` file contains:
+
+- `region`
+- `center`
+- `offset_y`
+- `offset_x`
 
 ## Training
 
-The manuscript configuration is stored in
-[configs/unetpp_rco_paper.yaml](configs/unetpp_rco_paper.yaml). It uses
-five-fold image-level cross-validation with random seed 41. Run one fold at a
-time by setting `--fold` from 1 through 5; the model name receives a matching
-`_foldN` suffix automatically:
+The configuration used for the paper is:
 
-```bash
-python -m scripts.train_rco --config configs/unetpp_rco_paper.yaml --dataset <dataset_name> --img_ext .tif --fold 1
+```text
+configs/unetpp_rco_paper.yaml
 ```
 
-Repeat the command with `--fold 2`, `--fold 3`, `--fold 4`, and `--fold 5`.
-For the 110-image paper dataset, each fold holds out 22 images as the test set.
-Of the remaining 88 images, `val_size=0.1` selects 9 images for validation,
-leaving 79 training images: 79 train / 9 validation / 22 test per fold.
+Run one fold at a time:
 
-`configs/unetpp_rco_example.yaml` is retained only as a configurable example
-for non-paper experiments. It is not the paper reproduction configuration.
+```bash
+python -m scripts.train_rco \
+  --config configs/unetpp_rco_paper.yaml \
+  --dataset <dataset_name> \
+  --img_ext .tif \
+  --fold 1
+```
 
-The training script stores:
+Repeat with `--fold 2`, `--fold 3`, `--fold 4`, and `--fold 5`.
 
-- `models/<name>/config.yml`
-- `models/<name>/splits/train_ids.txt`
-- `models/<name>/splits/val_ids.txt`
-- `models/<name>/splits/test_ids.txt`
-- Best checkpoints selected by validation IoU, Dice, and loss
-- Training curves and logs
+The paper configuration uses:
 
-For a paper release, commit the exact split ID files used for the reported
-results under `paper_splits/<dataset_name>/`.
+- Input size: `1024 × 1024`
+- Grayscale input: `1` channel
+- RCO outputs: `4` channels
+- Base channels: `32`
+- GroupNorm groups: `8`
+- Deep supervision: disabled
+- Epochs: `200`
+- Batch size: `2`
+- Optimizer: AdamW
+- Learning rate: `1e-3`
+- Weight decay: `1e-4`
+- Scheduler: CosineAnnealingLR
+- Minimum learning rate: `1e-5`
+- Five-fold image-level cross-validation
+- Random seed: `41`
+- `lambda_region = lambda_center = lambda_offset = 1.0`
+- Best checkpoint selected according to validation IoU
 
-## Prediction And Evaluation
+For the 110-image dataset used in the study, each fold contained approximately:
 
-Predict a directory:
+- 79 training images
+- 9 validation images
+- 22 test images
+
+The exact experimental SEM dataset is not distributed with this repository.
+
+## Prediction
+
+Predict a directory of SEM images with:
 
 ```bash
 python -m scripts.predict_rco \
@@ -166,7 +166,20 @@ python -m scripts.predict_rco \
   --save-prob
 ```
 
-Evaluate the saved test split and search the validation threshold:
+The default inference workflow uses the RCO refinement described above and includes deterministic grayscale enhancement.
+
+To disable the grayscale enhancement:
+
+```bash
+python -m scripts.predict_rco \
+  --name <model_name> \
+  --predict-dir inputs/<dataset_name>/images \
+  --no-enhance
+```
+
+## Validation threshold search
+
+If reference targets are available, validation threshold search can be performed with:
 
 ```bash
 python -m scripts.predict_rco \
@@ -178,41 +191,23 @@ python -m scripts.predict_rco \
   --search-threshold
 ```
 
-Prediction settings are recorded in `prediction_settings.yml`, including the
-RCO refinement parameters and connected-component size threshold.
-
-The default paper inference path uses `region_thr=0.5`, an uncertainty interval
-of 0.35-0.65, and `alpha=beta=0.15`. It also includes deterministic grayscale
-brightness/contrast standardization to reduce differences in the overall gray
-level distribution among SEM images. This enhancement is enabled by default;
-use `--no-enhance` to disable it for an ablation or a different dataset.
-
 ## Baselines
 
-Reference implementations are stored in `baselines/`:
+Reference implementations used for comparison are included in `baselines/`:
 
 | Script | Method |
-| --- | --- |
-| `otsu_morphology.py` | Otsu thresholding with morphology |
-| `random_forest.py` | Pixel-level random forest |
-| `unet.py` | Standard U-Net |
-| `unetplusplus.py` | Standard U-Net++ |
+|---|---|
+| `otsu_morphology.py` | Otsu thresholding |
+| `random_forest.py` | Random Forest |
+| `unet.py` | U-Net |
+| `unetplusplus.py` | U-Net++ |
 
-These scripts retain their original experiment entry points and default
-`dataset/` paths so the reported baseline behavior stays intact. Before a paper
-release, archive the exact baseline commands and result files alongside the
-reported tables.
+These baseline scripts retain their experiment-oriented entry points and may require additional Python packages depending on the selected method.
 
-## Reproducibility
+## Data and model availability
 
-Use `configs/unetpp_rco_paper.yaml` for the reported U-Net++-RCO training
-parameters. The training script saves the resolved config and train,
-validation, and test image IDs beneath each fold's `models/<name>/` directory.
-The original SEM dataset and pretrained weights are not bundled with this
-repository.
-
-See [docs/reproducibility.md](docs/reproducibility.md) for a release checklist.
+The original experimental SEM dataset and pretrained model weights are not distributed in this repository. Users should provide their own appropriately prepared SEM images and annotations.
 
 ## License
 
-Released under the MIT License. See [LICENSE](LICENSE).
+This repository is released under the MIT License.
