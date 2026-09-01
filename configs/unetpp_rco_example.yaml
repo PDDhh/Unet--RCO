@@ -1,0 +1,63 @@
+# Example U-Net++-RCO training configuration.
+# Replace these values with the exact paper configuration before release.
+
+name: null
+epochs: 300
+batch_size: 1
+
+arch: NestedUNet
+deep_supervision: false
+input_channels: 1
+num_classes: 4
+input_w: 1024
+input_h: 1024
+base_channels: 8
+filters: null
+use_checkpoint: true
+use_bn: true
+norm_type: group
+num_groups: 8
+align_corners: false
+
+dataset: example_dataset
+img_ext: .png
+inst_dir_name: inst_targets
+test_size: 0.2
+val_size: 0.2
+random_state: 41
+
+kfold: false
+n_splits: 5
+fold: 1
+append_fold_to_name: true
+train_id_list: null
+val_id_list: null
+test_id_list: null
+
+optimizer: AdamW
+lr: 0.001
+momentum: 0.9
+weight_decay: 0.0001
+nesterov: false
+
+scheduler: CosineAnnealingLR
+min_lr: 0.00001
+factor: 0.1
+patience: 5
+milestones: 50,80
+gamma: 0.1
+early_stopping: -1
+model_selection: best_val_iou
+
+num_workers: 0
+amp: true
+channels_last: true
+grad_accumulation: 1
+clip_grad: 0.0
+
+lambda_region: 1.0
+lambda_center: 0.5
+lambda_offset: 0.5
+region_dice_weight: 0.5
+auto_pos_weight: true
+region_pos_weight: 1.0

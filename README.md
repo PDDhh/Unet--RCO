@@ -42,6 +42,7 @@ details.
 |   |-- unet.py
 |   |-- unetplusplus.py
 |-- configs/
+|   |-- unetpp_rco_paper.yaml
 |   |-- unetpp_rco_example.yaml
 |-- docs/
 |   |-- method.md
@@ -90,7 +91,11 @@ pip install -r requirements-baselines.txt
 
 ## Data Preparation
 
-Place images and binary masks under:
+This repository does **not** include the original SEM data used in the paper.
+Users must prepare their own grayscale SEM images and corresponding annotations.
+The code does not require the paper's private raw experimental data.
+
+Place the grayscale images and matching binary masks under:
 
 ```text
 inputs/<dataset_name>/
@@ -119,15 +124,23 @@ extend the target generation step.
 
 ## Training
 
-Review [configs/unetpp_rco_example.yaml](configs/unetpp_rco_example.yaml), then
-run:
+The manuscript configuration is stored in
+[configs/unetpp_rco_paper.yaml](configs/unetpp_rco_paper.yaml). It uses
+five-fold image-level cross-validation with random seed 41. Run one fold at a
+time by setting `--fold` from 1 through 5; the model name receives a matching
+`_foldN` suffix automatically:
 
 ```bash
-python -m scripts.train_rco \
-  --config configs/unetpp_rco_example.yaml \
-  --dataset <dataset_name> \
-  --img_ext .tif
+python -m scripts.train_rco --config configs/unetpp_rco_paper.yaml --dataset <dataset_name> --img_ext .tif --fold 1
 ```
+
+Repeat the command with `--fold 2`, `--fold 3`, `--fold 4`, and `--fold 5`.
+For the 110-image paper dataset, each fold holds out 22 images as the test set.
+Of the remaining 88 images, `val_size=0.1` selects 9 images for validation,
+leaving 79 training images: 79 train / 9 validation / 22 test per fold.
+
+`configs/unetpp_rco_example.yaml` is retained only as a configurable example
+for non-paper experiments. It is not the paper reproduction configuration.
 
 The training script stores:
 
@@ -168,9 +181,11 @@ python -m scripts.predict_rco \
 Prediction settings are recorded in `prediction_settings.yml`, including the
 RCO refinement parameters and connected-component size threshold.
 
-Brightness and contrast enhancement is enabled by default during prediction to
-preserve the reference workflow. Use `--no-enhance` for an ablation or when the
-training protocol does not use this preprocessing choice.
+The default paper inference path uses `region_thr=0.5`, an uncertainty interval
+of 0.35-0.65, and `alpha=beta=0.15`. It also includes deterministic grayscale
+brightness/contrast standardization to reduce differences in the overall gray
+level distribution among SEM images. This enhancement is enabled by default;
+use `--no-enhance` to disable it for an ablation or a different dataset.
 
 ## Baselines
 
@@ -190,22 +205,13 @@ reported tables.
 
 ## Reproducibility
 
-The example config is a starting point, not a claim about the final paper
-settings. Before publication:
-
-1. Replace it with the exact configuration used for the paper.
-2. Commit the fixed train, validation, and test split files.
-3. Record the Python, CUDA, and GPU versions.
-4. Add the released checkpoint URL and dataset access instructions.
-5. Update `CITATION.cff` with the paper authors, title, DOI, and repository URL.
+Use `configs/unetpp_rco_paper.yaml` for the reported U-Net++-RCO training
+parameters. The training script saves the resolved config and train,
+validation, and test image IDs beneath each fold's `models/<name>/` directory.
+The original SEM dataset and pretrained weights are not bundled with this
+repository.
 
 See [docs/reproducibility.md](docs/reproducibility.md) for a release checklist.
-
-## Citation
-
-If this repository supports a publication, update `CITATION.cff` before the
-public release. GitHub will expose the completed metadata through its
-**Cite this repository** interface.
 
 ## License
 

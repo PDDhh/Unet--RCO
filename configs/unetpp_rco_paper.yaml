@@ -1,0 +1,74 @@
+# Paper configuration for U-Net++-RCO.
+# Run folds 1 through 5 with --fold 1, ..., --fold 5.
+
+name: null
+epochs: 200
+batch_size: 2
+
+arch: NestedUNet
+deep_supervision: false
+input_channels: 1
+num_classes: 4
+input_w: 1024
+input_h: 1024
+base_channels: 32
+filters: null
+use_checkpoint: true
+use_bn: true
+norm_type: group
+num_groups: 8
+align_corners: false
+
+dataset: gamma_gamma_prime
+img_ext: .png
+inst_dir_name: inst_targets
+test_size: 0.2
+val_size: 0.1
+random_state: 41
+
+kfold: true
+n_splits: 5
+fold: 1
+append_fold_to_name: true
+train_id_list: null
+val_id_list: null
+test_id_list: null
+
+hflip_prob: 0.25
+vflip_prob: 0.25
+intensity_aug_prob: 0.80
+contrast_min: 0.85
+contrast_max: 1.20
+brightness_min: -18
+brightness_max: 18
+noise_prob: 0.25
+noise_std_min: 2
+noise_std_max: 8
+
+optimizer: AdamW
+lr: 0.001
+momentum: 0.9
+weight_decay: 0.0001
+nesterov: false
+
+scheduler: CosineAnnealingLR
+min_lr: 0.00001
+factor: 0.1
+patience: 5
+milestones: 50,80
+gamma: 0.1
+early_stopping: -1
+model_selection: best_val_iou
+
+num_workers: 0
+amp: true
+channels_last: true
+grad_accumulation: 1
+clip_grad: 0.0
+
+lambda_region: 1.0
+lambda_center: 1.0
+lambda_offset: 1.0
+region_dice_weight: 0.5
+auto_pos_weight: false
+region_pos_weight: 1.0
